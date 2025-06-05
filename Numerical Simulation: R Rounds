@@ -1,0 +1,168 @@
+MATLAB CODE:
+
+% Function: runprotocol_R_rounds - simulates R rounds of the hashing protocol
+% REQUIRES: arg_bound, opteps
+% Input: n - number of copies
+%        W - describes noisy state: W|phi+><phi+| + (1-W)id/4
+%        epsilon - denotes the total error post-protocol
+%        R - number of rounds
+
+% Output: finalrank - rank of the output state
+%         fidelity - fidelity of output state
+
+function [finalrank,fidelity] = runprotocol_R_rounds(n,W,error,R)
+%First: Generate state that is epsilon1 close to the original state; with small rank 
+    digits(100);
+    eps1 = opteps(n,W,error);
+    eps2 = error - eps1;
+    p1 = (1+3*W)/4;
+    p2 = (1-W)/4; 
+    [i,x,smoothH,r,rank] = arg_bound(n,W,eps1, eps2);
+    
+    %Number of Rounds (If one wants to change it)
+    r = R;
+% We need two strings: one that characterizes the weights and one that stores the strings
+    rank = double(rank);
+    x = double(x);
+    probsum = ceil(x)*p1^(n-i)*p2^(i);
+    for j = 0 : i-1
+        probsum = probsum+3^(j)*nchoosek(n,j)*p1^(n-j)*p2^(j);
+    end
+    Probvec = zeros(1,rank);
+    Stringvec = zeros(2*n,rank);
+    counter = 1;
+    Probvec(counter) = p1^(n)/probsum;
+    for j = 1 : i
+        v = 1:n;
+        C = nchoosek(v,j);
+        for k1 = 0 : 3^(j)-1
+            errortype = zeros(1,j);
+            errorstring = dec2base(k1,3);
+            Length = length(errorstring);
+            for k = 0 : Length -1
+                errortype(j-k) = str2double(errorstring(Length-k));
+            end
+            for k2 = 1 : nchoosek(n,j)
+                counter = counter +1;
+                if counter <= rank
+                    Probvec(counter) = vpa(p1^(n-j)*p2^(j)/probsum);
+                    for k3 = 1 : j
+                        if errortype(k3) == 0
+                            Stringvec(counter,2*C(k2,k3)-1)=0;
+                            Stringvec(counter,2*C(k2,k3))=1;
+                        elseif errortype(k3)== 1
+                            Stringvec(counter,2*C(k2,k3)-1)=1;
+                            Stringvec(counter,2*C(k2,k3))=0;
+                        else errortype(k3) == 2
+                            Stringvec(counter,2*C(k2,k3)-1)=1;
+                            Stringvec(counter,2*C(k2,k3))=1;
+                        end
+                    end
+                else
+                    break
+                end
+            end
+        end
+    end
+%Now that we have the strings, we must simulate the r rounds
+    for j = 1 : r
+        begofroundstate = Stringvec;
+        begofroundprob = Probvec;
+        S = randi([0 1],2*(n-j+1),1);
+        while S == zeros(2*(n-j+1),1)
+            S = randi([0 1],2*(n-j+1),1);
+        end
+        EvenParityProb = 0;
+        OddParityProb = 0;
+        %parity = 0;
+        for k1 = 1: length(Probvec)
+            parity = 0;
+            for k2 = 1 : length(S)
+                parity = parity + S(k2)*Stringvec(k1,k2);
+            end
+            parity = mod(parity, 2);
+            if parity == 0
+                EvenParityProb = EvenParityProb + Probvec(k1);
+            else
+                OddParityProb = OddParityProb + Probvec(k1);
+            end
+        end
+% Get Measurement Outcome
+        randomnum = rand(1);
+        measurementoutcome = 0;
+        if randomnum > EvenParityProb
+            measurementoutcome = 1;
+        end
+% Remove All strings with wrong Parity
+        Length = length(Probvec)
+        for k1 = 1: Length
+            parity = 0;
+            for k2 = 1 : length(S)
+                parity = parity + S(k2)*Stringvec(Length-k1+1,k2);
+            end
+            parity = mod(parity, 2);
+            if parity ~= measurementoutcome
+                Stringvec(Length-k1+1,:) = [];
+                Probvec(Length-k1+1) = [];
+            end
+            
+        end
+        Probvec = Probvec/sum(Probvec);
+% Apply Step 1 of Protocol
+        Length = length(Probvec);
+        for k1 = 1: Length
+            for k2 = 1 : length(S)/2
+                if S(2*k2-1)==1 && S(2*k2)==0
+                    dig1 = Stringvec(k1,2*k2-1);
+                    dig2 = Stringvec(k1,2*k2);
+                    Stringvec(k1,2*k2-1) = dig2;
+                    Stringvec(k1,2*k2) = dig1;
+                elseif S(2*k2-1)==1 && S(2*k2)==1
+                    dig1 = Stringvec(k1,2*k2-1);                    
+                    dig2 = Stringvec(k1,2*k2);
+                    Stringvec(k1,2*k2) = mod(dig1+dig2,2);
+                end
+            end
+            
+        end
+% Apply Step 2 of Protocol
+        firstnonzero = find(S,1,'first');
+        targetpair = ceil(firstnonzero/2);
+        for k1 = 1: Length
+            for k2 = 1 : length(S)/2
+                if S(2*k2-1)~=0 || S(2*k2)~=0
+                    dig1 = Stringvec(k1,2*targetpair-1);
+                    Stringvec(k1,2*k2-1) = mod(Stringvec(k1,2*k2-1)+dig1,2);
+                end
+            end
+        end
+% Remove Mesured Pair and Simplify Strings        
+        Stringvec(:,2*targetpair) = [];
+        Stringvec(:,2*targetpair-1) = [];
+        for k1 = 1: Length - 1
+            removed= 0;
+            for k2 = 1 : Length-k1
+                if Stringvec(Length-k1+1,:) == Stringvec(k2,:)
+                    if removed == 0
+                        Probvec(k2) = Probvec(k2)+ Probvec(Length-k1+1);
+                        removed = 1;
+                    end
+                end
+            end
+            if removed == 1
+                Stringvec(Length-k1+1,:) = [];
+                Probvec(Length-k1+1) = []; 
+            end
+        end
+        if length(Probvec) ==0
+            disp(S);
+            disp(randomnum);
+            disp(measurementoutcome);
+            disp(begofroundstate);
+            disp(begofroundprob);
+            
+        end
+    end
+    finalrank =  length(Probvec);
+    fidelity = max(Probvec);
+end

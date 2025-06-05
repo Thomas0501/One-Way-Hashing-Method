@@ -1,0 +1,30 @@
+%% MATLAB CODE: 
+% Input: n - number of copies
+%        W - describes noisy state: W|phi+><phi+| + (1-W)id/4
+%        epsilonone/two - denote the two errors whose sum equal the total error post-protocol
+
+function [rate] = rightbound(n,W,epsilonone, epsilontwo)
+    digits(100);
+    sum = vpa(0);
+    rank = vpa(0);
+    tolerancelvl = vpa(1-(epsilonone)^2);
+    p1 = (1+3*W)/4;
+    p2 = (1-W)/4;
+    
+    for i = 0 : n
+        check = vpa(sum + nchoosek(n,i)*3^(i)*p1^(n-i)*p2^(i));
+        if vpa(tolerancelvl-check )>0
+            sum = check;
+            rank = rank + nchoosek(n,i)*3^(i);
+        else 
+            num = vpa(tolerancelvl - sum);
+            denom = p1^(n-1)*p2^(i);
+            x = num/denom;
+            sum = sum + ceil(x)*denom;
+            rank = rank +ceil(x);
+            break
+        end
+    end
+    smoothH = double(log2(rank));
+    r = ceil(smoothH - 2*log2(epsilontwo));
+    rate = (n - r)/n;

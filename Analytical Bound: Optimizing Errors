@@ -1,0 +1,58 @@
+%% MATLAB CODE: Contains 2 Functions
+
+% Function 1: bound - similar to the function rightbound, but does not contain the ceil-function. 
+% This allows for better optimization of second function.
+% Input: n - number of copies
+%        W - describes noisy state: W|phi+><phi+| + (1-W)id/4
+%        epsilonone/two - denote the two errors whose sum equal the total error post-protocol
+
+% Function 2: opteps - For a given error, optimizes epsilonone/two. 
+% Input: n - number of copies
+%        W - describes noisy state: W|phi+><phi+| + (1-W)id/4
+%        epsilon - denotes the total error post-protocol
+
+function [rate] = bound(n,W,epsilonone, epsilontwo)
+    digits(100);
+    sum = vpa(0);
+    rank = vpa(0);
+    tolerancelvl = vpa(1-(epsilonone)^2);
+    p1 = (1+3*W)/4;
+    p2 = (1-W)/4;
+    
+    for i = 0 : n
+        check = vpa(sum + nchoosek(n,i)*3^(i)*p1^(n-i)*p2^(i));
+        if vpa(tolerancelvl-check )>0
+            sum = check;
+            rank = rank + nchoosek(n,i)*3^(i);
+        else 
+            num = vpa(tolerancelvl - sum);
+            denom = p1^(n-1)*p2^(i);
+            x = num/denom;
+            %sum = sum + ceil(x)*denom;
+            sum = sum + x*denom;
+            %rank = rank +ceil(x);
+            rank = rank +x;
+            break
+        end
+    end
+    smoothH = double(log2(rank));
+    %r = ceil(smoothH - 2*log2(epsilontwo));
+    r = smoothH - 2*log2(epsilontwo);
+    rate = (n - r)/n;
+
+end
+
+function [x] = opteps(n,W,epsilon)
+    x0 = [epsilon/2];
+    A= [];
+    b = [];
+    Aeq = [];
+    beq = [];
+    lb = [0];
+    ub = [epsilon];
+    function f = min_fun(x)
+        f = -bound(n,W,x(1), epsilon-x(1));
+    end
+    fun = @min_fun
+    x = fmincon(fun,x0,A,b,Aeq,beq,lb,ub);
+end

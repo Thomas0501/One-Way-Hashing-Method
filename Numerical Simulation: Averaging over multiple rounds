@@ -1,0 +1,30 @@
+MATLAB CODE:
+
+% Function: avrunprotocol_R_rounds - averages over multiple iterations of the hashing protocol
+% For a single iteration of the protocol: We consider all # of rounds (R) between R=1 and R = n-1
+% REQUIRES: opteps, runprotocol_R_rounds
+% Input: n - number of copies
+%        W - describes noisy state: W|phi+><phi+| + (1-W)id/4
+%        epsilon - denotes the total error post-protocol
+%        averageingover - # of iterations one averages over
+
+% Output: avrank - average rank of the output state (up to smoothing)
+%         avfid - average fidelity of output state
+%         ranks - Records the rank of the output state for all iterations of the hashing protocol (For all R) 
+%         Fidelities - Records the fidelity of the output state for all iterations of the hashing protocol (For all R)
+
+function [avrank,avfid,ranks,Fidelities] = avrunprotocol_R_rounds(n,W,error,averageingover)
+    eps1 = opteps(n,W,error);
+    eps2 = error - eps1;
+    p1 = (1+3*W)/4;
+    p2 = (1-W)/4; 
+    ranks = zeros(n-1,averageingover)
+    Fidelities = zeros(n-1,averageingover)
+    %for j = 1 : R
+    for j = 1 : n-1
+        for i = 1 : averageingover
+            [ranks(j,i),Fidelities(j,i)]= runprotocol_R_rounds(n,W,error,j)
+        end
+    end
+    avrank = mean(ranks,2);
+end

@@ -7,7 +7,7 @@ MATLAB CODE:
 %        epsilon - denotes the total error post-protocol
 %        R - number of rounds
 
-% Output: finalrank - rank of the output state
+% Output: finalrank - rank of the output state (up to smoothing)
 %         fidelity - fidelity of output state
 
 function [finalrank,fidelity] = runprotocol_R_rounds(n,W,error,R)
